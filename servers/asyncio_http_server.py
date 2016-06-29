@@ -61,7 +61,10 @@ class HttpProtocol(asyncio.Protocol):
         self._current_headers = None
 
     def on_url(self, url):
-        self._current_url = url
+        if self._current_url:
+            self._current_url += url
+        else:
+            self._current_url = url
 
     def on_header(self, name, value):
         self._current_headers.append((name, value))

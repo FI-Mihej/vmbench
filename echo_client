@@ -126,7 +126,7 @@ if __name__ == '__main__':
         for fut in res.done:
             t_messages, t_latency_stats, t_min_latency, t_max_latency = \
                 fut.result()
-            messages += t_messages
+            messages += t_messages * args.mpr
             if latency_stats is None:
                 latency_stats = t_latency_stats
             else:

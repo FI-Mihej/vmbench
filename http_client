@@ -29,8 +29,12 @@ function done(summary, latency, requests)
     "latency_percentiles": [%s]
 }]]
 
-    transfer = (summary.bytes / (1024 * 1024)) / (summary.duration / 1000000)
-    rps = summary.requests / (summary.duration / 1000000)
+    transfer = 1024 * 1024 * 1024 * 1024 * 1024
+    rps = transfer
+    if summary.duration >= 1000 then
+        transfer = (summary.bytes / (1024 * 1024)) / (summary.duration / 1000000)
+        rps = summary.requests / (summary.duration / 1000000)
+    end
     latency_percentiles = {}
     percentiles = {25, 50, 75, 90, 99, 99.99}
 
@@ -41,11 +45,20 @@ function done(summary, latency, requests)
                           latency:percentile(percentile) / 1000)
         )
     end
-
-    out = string.format(tpl, summary.requests,  transfer, rps,
-                        latency.min / 1000, latency.mean / 1000,
-                        latency.max / 1000, latency.stdev / 1000,
-                        (latency.stdev / latency.mean) * 100,
+    
+    latency_cv = 0
+    if latency.mean > 0.001 then
+        latency_cv = (latency.stdev / latency.mean) * 100
+    end
+    
+    out = string.format(tpl, 
+                        summary.requests,  
+                        transfer, rps,
+                        latency.min / 1000, 
+                        latency.mean / 1000,
+                        latency.max / 1000, 
+                        latency.stdev / 1000,
+                        latency_cv,
                         table.concat(latency_percentiles, ','))
 
     io.stderr:write(out)
@@ -74,12 +87,17 @@ if __name__ == '__main__':
     with tempfile.NamedTemporaryFile(mode='w+t', delete=False) as luaf:
         luaf.write(luascript)
         lua_script_path = luaf.name
-
+    
     wrk = ['wrk', '--latency', '--duration={}s'.format(args.duration),
            '--connections={}'.format(args.concurrency),
            '--script={}'.format(lua_script_path),
            'http://{}/{}'.format(args.addr, args.msize)]
+    
+    if 1 == args.concurrency:
+        wrk.append('--threads=1')
 
+    out = None 
+    data_json = None
     try:
         wrk_run = subprocess.Popen(wrk, universal_newlines=True,
                                    stdout=subprocess.PIPE,
@@ -87,11 +105,19 @@ if __name__ == '__main__':
         out, data_json = wrk_run.communicate()
     finally:
         os.unlink(lua_script_path)
+        
+    if data_json is not None:
+        data_json.replace('nan,', '0,')
 
     if args.output_format == 'json':
         print(data_json)
     else:
-        data = json.loads(data_json)
+        try:
+            data = json.loads(data_json)
+        except ValueError:
+            print('Wrk Out:', out, ';\nWrk Err:', data_json)
+            raise
+        
 
         data['latency_percentiles'] = '; '.join(
             '{}% under {}ms'.format(*v) for v in data['latency_percentiles'])
