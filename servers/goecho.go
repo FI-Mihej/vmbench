@@ -11,6 +11,7 @@ import (
 const PORT = 25000
 
 func main() {
+	fmt.Printf("Started\n")
 	server, err := net.Listen("tcp", ":"+strconv.Itoa(PORT))
 	if server == nil {
 		panic("couldn't start listening: " + err.Error())
@@ -28,16 +29,55 @@ func main() {
 	}
 }
 
+//func handleConn(client net.Conn) {
+//	// USELES RAW COPYLESS (ORIGINAL VERSION)
+//    defer client.Close()
+//	buf := make([]byte, 102400)
+//	for {
+//		reqLen, err := client.Read(buf)
+//		if err != nil {
+//			break
+//		}
+//		if reqLen > 0 {
+//			client.Write(buf[:reqLen])
+//		}
+//	}
+//}
+
+//func handleConn(client net.Conn) {
+//	// COPY FROM BUFF
+//    defer client.Close()
+//	buf := make([]byte, 102400)
+//	for {
+//		reqLen, err := client.Read(buf)
+//    		resultBuf := make([]byte, reqLen)
+//		copy(resultBuf, buf)
+//		if err != nil {
+//			break
+//		}
+//		if reqLen > 0 {
+//			//client.Write(buf[:reqLen])
+//			client.Write(resultBuf)
+//		}
+//	}
+//}
+
 func handleConn(client net.Conn) {
+	// WITH SLICES
     defer client.Close()
-	buf := make([]byte, 102400)
+	buf := make([]byte, 1048576)
 	for {
 		reqLen, err := client.Read(buf)
+    		resultBuf := buf[:reqLen]
+		buf = buf[reqLen:]
+		if len(buf) <= 0 {
+			buf = make([]byte, 1048576)
+		}
 		if err != nil {
 			break
 		}
 		if reqLen > 0 {
-			client.Write(buf[:reqLen])
+			client.Write(resultBuf)
 		}
 	}
 }
